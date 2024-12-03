@@ -1,0 +1,53 @@
+
+exercise1
+
+# Exercise 1: Detect Nmap SYN Scan from external network
+
+alert tcp any any -> $HOME_NET any (msg:"Nmap SYN Scan detected"; flags:S; threshold:type limit, track by_src, count 20, seconds 3; classtype:attempted-recon; sid:100002; rev:1;)
+
+# Exercise 2: Detect access to /admin pages from external network
+
+alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Unauthorized access attempt to /admin"; content:"/admin"; http_uri; nocase; classtype:web-application-activity; sid:100003; rev:1;)
+
+# Exercise 3: Detect FTP failed login attempt
+
+alert tcp $EXTERNAL_NET any -> $HOME_NET 21 (msg:"FTP failed login attempt"; content:"530 Login incorrect"; flow:from_server,established; classtype:unsuccessful-user; sid:100004; rev:1;)
+
+# Exercise 4: Detect any HTTP packet
+
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"HTTP packet detected"; flow:to_server,established; content:"GET"; http_method; classtype:unknown; sid:100005; rev:1;)
+
+
+exe. 2
+Create snort rule to detect:
+- From external networks 10.0.0.0/8, 1.0.0.0/24, 196.2.3.0/16 and 8.8.8.8
+- from ports 9090, 8080, 22, 80, 443
+- To internal network 192.168.82.0/24 on port 53/UDP
+- content "thisissometempspace whoiscool"
+- with NO TCP flags
+- classification must be "DNS bind" with description is "DNS data triggered" and priority must be 8
+
+
+# Step 1: Define the Snort Rule
+echo 'alert udp [10.0.0.0/8,1.0.0.0/24,196.2.3.0/16,8.8.8.8] [9090,8080,22,80,443] -> 192.168.82.0/24 53 (
+    msg:"DNS data triggered"; 
+    content:"thisissometempspace whoiscool"; 
+    nocase; 
+    classtype:dns-bind; 
+    priority:8; 
+    sid:100001; 
+    rev:1;
+)' | sudo tee -a /etc/snort/rules/local.rules
+
+# Step 2: Modify Snort Configuration to Include the Rule
+sudo sed -i '/^include \$RULE_PATH\/local.rules/!b;n;s/^/#/' /etc/snort/snort.conf
+echo "include \$RULE_PATH/local.rules" | sudo tee -a /etc/snort/snort.conf
+
+# Step 3: Test Snort Configuration
+sudo snort -T -c /etc/snort/snort.conf
+
+# Step 4: Run Snort to Monitor Traffic
+sudo snort -A console -q -c /etc/snort/snort.conf -i eth0  # Replace 'eth0' with your network interface
+
+# Step 5: Check Alerts in the Log
+sudo cat /var/log/snort/alert
